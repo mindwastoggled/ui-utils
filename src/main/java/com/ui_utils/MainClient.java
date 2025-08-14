@@ -1,6 +1,8 @@
 package com.ui_utils;
 
 import com.google.common.collect.ImmutableList;
+import com.google.gson.Gson;
+import com.mojang.serialization.JsonOps;
 import it.unimi.dsi.fastutil.ints.Int2ObjectArrayMap;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -14,13 +16,14 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
-import net.minecraft.item.ItemStack;
 import net.minecraft.network.packet.Packet;
 import net.minecraft.network.packet.c2s.play.ButtonClickC2SPacket;
 import net.minecraft.network.packet.c2s.play.ClickSlotC2SPacket;
 import net.minecraft.network.packet.c2s.play.CloseHandledScreenC2SPacket;
 import net.minecraft.screen.slot.SlotActionType;
+import net.minecraft.screen.sync.ItemStackHash;
 import net.minecraft.text.Text;
+import net.minecraft.text.TextCodecs;
 import org.jetbrains.annotations.NotNull;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
@@ -29,7 +32,6 @@ import com.ui_utils.mixin.accessor.ClientConnectionAccessor;
 
 import javax.swing.*;
 import java.awt.*;
-import java.util.Objects;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.Vector;
@@ -258,13 +260,13 @@ public class MainClient implements ClientModInitializer {
                                     actionField.getSelectedItem() != null) {
                         int syncId = Integer.parseInt(syncIdField.getText());
                         int revision = Integer.parseInt(revisionField.getText());
-                        int slot = Integer.parseInt(slotField.getText());
-                        int button0 = Integer.parseInt(buttonField.getText());
+                        short slot = Short.parseShort(slotField.getText());
+                        byte button0 = Byte.parseByte(buttonField.getText());
                         SlotActionType action = MainClient.stringToSlotActionType(actionField.getSelectedItem().toString());
                         int timesToSend = Integer.parseInt(timesToSendField.getText());
 
                         if (action != null) {
-                            ClickSlotC2SPacket packet = new ClickSlotC2SPacket(syncId, revision, slot, button0, action, ItemStack.EMPTY, new Int2ObjectArrayMap<>());
+                            ClickSlotC2SPacket packet = new ClickSlotC2SPacket(syncId, revision, slot, button0, action, new Int2ObjectArrayMap<>(), ItemStackHash.EMPTY);
                             try {
                                 Runnable toRun = getFabricatePacketRunnable(mc, delayBox.isSelected(), packet);
                                 for (int i = 0; i < timesToSend; i++) {
@@ -448,7 +450,8 @@ public class MainClient implements ClientModInitializer {
                     throw new IllegalStateException("The current minecraft screen (mc.currentScreen) is null");
                 }
                 // fixes #137
-                mc.keyboard.setClipboard(Text.Serialization.toJsonString(mc.currentScreen.getTitle(), Objects.requireNonNull(MinecraftClient.getInstance().getServer()).getRegistryManager()));
+                // From fabric wiki https://docs.fabricmc.net/develop/text-and-translations#serializing-text
+                mc.keyboard.setClipboard(new Gson().toJson(TextCodecs.CODEC.encodeStart(JsonOps.INSTANCE, mc.currentScreen.getTitle()).getOrThrow()));
             } catch (IllegalStateException e) {
                 LOGGER.error("Error while copying title JSON to clipboard", e);
             }
